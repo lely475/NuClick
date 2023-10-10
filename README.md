@@ -30,3 +30,23 @@ Pillow==8.0.1
  * Define directories in the `config.py`:  `mat_path = ''` ,  `images_path = ''` and `save_path = ''`
  * run `test_all_images`
  
+## Credits
+```
+@article{DBLP:journals/corr/abs-2005-14511,
+  author       = {Navid Alemi Koohbanani and
+                  Mostafa Jahanifar and
+                  Neda Zamani Tajadin and
+                  Nasir M. Rajpoot},
+  title        = {NuClick: {A} Deep Learning Framework for Interactive Segmentation
+                  of Microscopy Images},
+  journal      = {CoRR},
+  volume       = {abs/2005.14511},
+  year         = {2020},
+  url          = {https://arxiv.org/abs/2005.14511},
+  eprinttype    = {arXiv},
+  eprint       = {2005.14511},
+  timestamp    = {Wed, 03 Jun 2020 11:36:54 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-2005-14511.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+```
