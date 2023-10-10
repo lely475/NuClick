@@ -245,7 +245,7 @@ def predictPatchs(model, patchs, dists, clickPrtrb=config.testTimeJittering):
         batch_size=batchSizeVal,
         color_mode='rgb',
         seed=seeddd)
-    preds = model.predict_generator(val_generator, steps=num_val // batchSizeVal)
+    preds = model.predict(val_generator, steps=num_val // batchSizeVal)
     preds = np.matrix.squeeze(preds, axis=3)
     return preds
 
@@ -380,7 +380,7 @@ def readImageAndCentroids(img_path, dot_path, name):
     all_cents = []
     try:
         # img = imread(os.path.join(img_path, name[:-4]+'.tif'))
-        img = Image.open(os.path.join(img_path, name[:-9] + '.tif'))
+        img = Image.open(os.path.join(img_path, name[:-4] + ".jpg"))
         img = np.asarray(img)
     except:
         print('image {} has some problem in reading'.format(name))
@@ -388,15 +388,11 @@ def readImageAndCentroids(img_path, dot_path, name):
         img = Image.open(os.path.join(img_path, name[:-9] + '.png'))
         img = np.asarray(img)
 
-    cents = loadmat(os.path.join(dot_path, name))
-    for key in cents.keys():
-        if key not in ['__header__', '__version__', '__globals__', 'NoNuclei']:
-            all_cents = np.ndarray.tolist(cents[key]) + all_cents
-    all_cents = [[x[0], x[1]] for x in all_cents]
+    all_cents = [list(map(int, row.split(",")[:2])) for row in open(dot_path)]
     if len(all_cents):
         all_cents = np.array(all_cents)
-        cx = all_cents[:, 1]
-        cy = all_cents[:, 0]
+        cx = all_cents[:, 0]
+        cy = all_cents[:, 1]
         return [img, cx, cy]
     else:
         return [np.zeros((img.shape[0], img.shape[1]))]

@@ -1,23 +1,28 @@
-
 """
 NuClick Network Architecture
 It is using MultiScale and Residual convolutional blocks. 
 Design paradigm follows Unet model which comprises Encoder and Decoder paths.
 
 """
-from keras.models import Model
-from keras.layers import Input, concatenate, Conv2D, MaxPooling2D, Conv2DTranspose
-from keras.layers import BatchNormalization , Activation
-from keras.layers import Lambda, add
-from keras.optimizers import Adam
-from keras.regularizers import l2
-from keras import backend as K
-from keras.utils import multi_gpu_model
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
+    Input,
+    concatenate,
+    Conv2D,
+    MaxPooling2D,
+    Conv2DTranspose,
+)
+from tensorflow.keras.layers import BatchNormalization, Activation
+from tensorflow.keras.layers import Lambda, add
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras import backend as K
 from models.losses import getLoss, dice_coef
 import tensorflow as tf
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-tf.keras.backend.set_session(tf.Session(config=config))
+
+gpus = tf.config.experimental.list_physical_devices("GPU")
+tf.config.experimental.set_memory_growth(gpus[0], True)
+
 from config import config
 
 
@@ -81,148 +86,100 @@ def residual_conv(input, features=32, kernelSize=(3,3), strds=(1, 1), actv = 're
 '''    
 ##################### DEFINING NETWORKS #######################################
 '''
-    
-def get_MultiScale_ResUnet (input_shape, lossType):
-    if multiGPU:
-        with tf.device("/cpu:0"):
-            img = Input(input_shape + (img_chls,), name='main_input')  # size: 1024
-            auxInput = Input(input_shape + (3,), name='dists_input')
-            weights = Lambda(lambda x : x[:,:,:,2])(auxInput)
-            dists = Lambda(lambda x : x[:,:,:,0:2])(auxInput)
-        
-            
-            inputs = concatenate([img, dists], axis=bn_axis)
-            
-            conv1 = _conv_bn_relu(inputs,64,7) #128
-            conv1 = _conv_bn_relu(conv1,32,5)
-            conv1 = _conv_bn_relu(conv1,32,3)
-            pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-        
-            conv2 = residual_conv(pool1, features=64) #64*64
-            conv2 = residual_conv(conv2, features=64)
-            pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-        
-            conv3 = residual_conv(pool2, features=128) #32*32
-            conv3 = multiScaleConv_block (conv3, 32, sizes=[3,3,5,5], dilatationRates=[1,3,3,6], isDense=False)  # FOV = [3,7,13,25] 
-            conv3 = residual_conv(conv3, features=128)
-            pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-        
-            conv4 = residual_conv(pool3, features=256) #16*16
-            conv4 = residual_conv(conv4, features=256)
-            conv4 = residual_conv(conv4, features=256)
-            pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
-        
-            conv5 = residual_conv(pool4, features=512) #8*8
-            conv5 = residual_conv(conv5, features=512)
-            conv5 = residual_conv(conv5, features=512)
-            pool5 = MaxPooling2D(pool_size=(2, 2))(conv5)
-            
-            conv51 = residual_conv(pool5, features=1024) #8*8
-            conv51 = residual_conv(conv51, features=1024)
-            
-            up61 = concatenate([Conv2DTranspose(512, 2, strides=(2, 2), padding='same')(conv51), conv5], axis=3)
-            conv61 = residual_conv(up61, features=512) #16*16
-            conv61 = residual_conv(conv61, features=256)
-            
-            up6 = concatenate([Conv2DTranspose(256, 2, strides=(2, 2), padding='same')(conv61), conv4], axis=3)
-            conv6 = residual_conv(up6, features=256) #16*16
-            conv6 = multiScaleConv_block (conv6, 64, sizes=[3,3,5,5], dilatationRates=[1,3,2,3], isDense=False) # FOV = [3,7,9,13] 
-            conv6 = residual_conv(conv6, features=256)
-        
-            up7 = concatenate([Conv2DTranspose(128, 2, strides=(2, 2), padding='same')(conv6), conv3], axis=3)
-            conv7 = residual_conv(up7, features=128) #32*32
-            conv7 = residual_conv(conv7, features=128)
-        
-            up8 = concatenate([Conv2DTranspose(64, 2, strides=(2, 2), padding='same')(conv7), conv2], axis=3)
-            conv8 = residual_conv(up8, features=64) #64*64
-            conv8 = multiScaleConv_block (conv8, 16, sizes=[3,3,5,7], dilatationRates=[1,3,3,6], isDense=False) # FOV = [3,7,13,37] 
-            conv8 = residual_conv(conv8, features=64)
-        
-            up9 = concatenate([Conv2DTranspose(32, 2, strides=(2, 2), padding='same')(conv8), conv1], axis=3)
-            conv9 = _conv_bn_relu(up9,64)
-            conv9 = _conv_bn_relu(conv9,32)
-            conv9 = _conv_bn_relu(conv9,32)
-        
-            conv10 = Conv2D(1, (1, 1), activation='sigmoid')(conv9)
-        
-            model = Model(inputs=[img, auxInput], outputs=[conv10])
-        
-            model = multi_gpu_model(model , 2)
-            model.compile(optimizer=Adam(lr=learningRate), loss=getLoss(lossType, weightMap=weights), metrics=[dice_coef]) # adding the momentum
-        
-            return model
-    else:
-        img = Input(input_shape + (img_chls,), name='main_input')  # size: 1024
-        auxInput = Input(input_shape + (3,), name='dists_input')
-        weights = Lambda(lambda x : x[:,:,:,2])(auxInput)
-        dists = Lambda(lambda x : x[:,:,:,0:2])(auxInput)
-    
-        
-        inputs = concatenate([img, dists], axis=bn_axis)
-        
-        conv1 = _conv_bn_relu(inputs,64,7) #128
-        conv1 = _conv_bn_relu(conv1,32,5)
-        conv1 = _conv_bn_relu(conv1,32,3)
-        pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-    
-        conv2 = residual_conv(pool1, features=64) #64*64
-        conv2 = residual_conv(conv2, features=64)
-        pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-    
-        conv3 = residual_conv(pool2, features=128) #32*32
-        conv3 = multiScaleConv_block (conv3, 32, sizes=[3,3,5,5], dilatationRates=[1,3,3,6], isDense=False)  # FOV = [3,7,13,25] 
-        conv3 = residual_conv(conv3, features=128)
-        pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-    
-        conv4 = residual_conv(pool3, features=256) #16*16
-        conv4 = residual_conv(conv4, features=256)
-        conv4 = residual_conv(conv4, features=256)
-        pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
-    
-        conv5 = residual_conv(pool4, features=512) #8*8
-        conv5 = residual_conv(conv5, features=512)
-        conv5 = residual_conv(conv5, features=512)
-        pool5 = MaxPooling2D(pool_size=(2, 2))(conv5)
-        
-        conv51 = residual_conv(pool5, features=1024) #8*8
-        conv51 = residual_conv(conv51, features=1024)
-        
-        up61 = concatenate([Conv2DTranspose(512, 2, strides=(2, 2), padding='same')(conv51), conv5], axis=3)
-        conv61 = residual_conv(up61, features=512) #16*16
-        conv61 = residual_conv(conv61, features=256)
-        
-        up6 = concatenate([Conv2DTranspose(256, 2, strides=(2, 2), padding='same')(conv61), conv4], axis=3)
-        conv6 = residual_conv(up6, features=256) #16*16
-        conv6 = multiScaleConv_block (conv6, 64, sizes=[3,3,5,5], dilatationRates=[1,3,2,3], isDense=False) # FOV = [3,7,9,13] 
-        conv6 = residual_conv(conv6, features=256)
-    
-        up7 = concatenate([Conv2DTranspose(128, 2, strides=(2, 2), padding='same')(conv6), conv3], axis=3)
-        conv7 = residual_conv(up7, features=128) #32*32
-        conv7 = residual_conv(conv7, features=128)
-    
-        up8 = concatenate([Conv2DTranspose(64, 2, strides=(2, 2), padding='same')(conv7), conv2], axis=3)
-        conv8 = residual_conv(up8, features=64) #64*64
-        conv8 = multiScaleConv_block (conv8, 16, sizes=[3,3,5,7], dilatationRates=[1,3,3,6], isDense=False) # FOV = [3,7,13,37] 
-        conv8 = residual_conv(conv8, features=64)
-    
-        up9 = concatenate([Conv2DTranspose(32, 2, strides=(2, 2), padding='same')(conv8), conv1], axis=3)
-        conv9 = _conv_bn_relu(up9,64)
-        conv9 = _conv_bn_relu(conv9,32)
-        conv9 = _conv_bn_relu(conv9,32)
-    
-        conv10 = Conv2D(1, (1, 1), activation='sigmoid')(conv9)
-    
-        model = Model(inputs=[img, auxInput], outputs=[conv10])
-            # model.compile(optimizer=Adam(lr=learningRate), loss=getLoss(lossType, weightMap=weights), metrics=[dice_coef]) # adding the momentum
-        model.compile(optimizer=Adam(lr=learningRate), loss='categorical_crossentropy', metrics=[dice_coef]) # adding the momentum
+def get_MultiScale_ResUnet(input_shape, lossType):
+    img = Input(input_shape + (img_chls,), name="main_input")  # size: 1024
+    auxInput = Input(input_shape + (3,), name="dists_input")
+    weights = Lambda(lambda x: x[:, :, :, 2])(auxInput)
+    dists = Lambda(lambda x: x[:, :, :, 0:2])(auxInput)
 
-    
-        return model
-            
+    inputs = concatenate([img, dists], axis=bn_axis)
+
+    conv1 = _conv_bn_relu(inputs, 64, 7)  # 128
+    conv1 = _conv_bn_relu(conv1, 32, 5)
+    conv1 = _conv_bn_relu(conv1, 32, 3)
+    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+
+    conv2 = residual_conv(pool1, features=64)  # 64*64
+    conv2 = residual_conv(conv2, features=64)
+    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+
+    conv3 = residual_conv(pool2, features=128)  # 32*32
+    conv3 = multiScaleConv_block(
+        conv3, 32, sizes=[3, 3, 5, 5], dilatationRates=[1, 3, 3, 6], isDense=False
+    )  # FOV = [3,7,13,25]
+    conv3 = residual_conv(conv3, features=128)
+    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
+
+    conv4 = residual_conv(pool3, features=256)  # 16*16
+    conv4 = residual_conv(conv4, features=256)
+    conv4 = residual_conv(conv4, features=256)
+    pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
+
+    conv5 = residual_conv(pool4, features=512)  # 8*8
+    conv5 = residual_conv(conv5, features=512)
+    conv5 = residual_conv(conv5, features=512)
+    pool5 = MaxPooling2D(pool_size=(2, 2))(conv5)
+
+    conv51 = residual_conv(pool5, features=1024)  # 8*8
+    conv51 = residual_conv(conv51, features=1024)
+
+    up61 = concatenate(
+        [Conv2DTranspose(512, 2, strides=(2, 2), padding="same")(conv51), conv5],
+        axis=3,
+    )
+    conv61 = residual_conv(up61, features=512)  # 16*16
+    conv61 = residual_conv(conv61, features=256)
+
+    up6 = concatenate(
+        [Conv2DTranspose(256, 2, strides=(2, 2), padding="same")(conv61), conv4],
+        axis=3,
+    )
+    conv6 = residual_conv(up6, features=256)  # 16*16
+    conv6 = multiScaleConv_block(
+        conv6, 64, sizes=[3, 3, 5, 5], dilatationRates=[1, 3, 2, 3], isDense=False
+    )  # FOV = [3,7,9,13]
+    conv6 = residual_conv(conv6, features=256)
+
+    up7 = concatenate(
+        [Conv2DTranspose(128, 2, strides=(2, 2), padding="same")(conv6), conv3],
+        axis=3,
+    )
+    conv7 = residual_conv(up7, features=128)  # 32*32
+    conv7 = residual_conv(conv7, features=128)
+
+    up8 = concatenate(
+        [Conv2DTranspose(64, 2, strides=(2, 2), padding="same")(conv7), conv2],
+        axis=3,
+    )
+    conv8 = residual_conv(up8, features=64)  # 64*64
+    conv8 = multiScaleConv_block(
+        conv8, 16, sizes=[3, 3, 5, 7], dilatationRates=[1, 3, 3, 6], isDense=False
+    )  # FOV = [3,7,13,37]
+    conv8 = residual_conv(conv8, features=64)
+
+    up9 = concatenate(
+        [Conv2DTranspose(32, 2, strides=(2, 2), padding="same")(conv8), conv1],
+        axis=3,
+    )
+    conv9 = _conv_bn_relu(up9, 64)
+    conv9 = _conv_bn_relu(conv9, 32)
+    conv9 = _conv_bn_relu(conv9, 32)
+
+    conv10 = Conv2D(1, (1, 1), activation="sigmoid")(conv9)
+
+    model = Model(inputs=[img, auxInput], outputs=conv10)
+    # model.compile(optimizer=Adam(lr=learningRate), loss=getLoss(lossType, weightMap=weights), metrics=[dice_coef]) # adding the momentum
+    model.compile(
+        optimizer=Adam(learning_rate=learningRate),
+        loss="categorical_crossentropy",
+        metrics=[dice_coef],
+    )  # adding the momentum
+
+    return model
+
 
 def getModel(network, lossType, input_shape):
-    if network in {'MultiScaleResUnet'}:
+    if network in {"MultiScaleResUnet"}:
         return get_MultiScale_ResUnet(input_shape, lossType)
     else:
-        raise ValueError('unknown network ' + network)
-        
+        raise ValueError("unknown network " + network)
