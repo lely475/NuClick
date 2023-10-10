@@ -4,7 +4,7 @@ Consists functions to be used for NuClick prediction
 
 """
 import numpy as np
-from skimage.io import imsave, imread
+from skimage.io import imsave
 import os
 from models.models import getModel
 from utils.utils import readImageAndCentroids, getClickMapAndBoundingBox, getPatchs, sharpnessEnhancement,\
@@ -12,6 +12,7 @@ from utils.utils import readImageAndCentroids, getClickMapAndBoundingBox, getPat
 from config import config
 import matplotlib.pyplot as plt
 from skimage.color import label2rgb
+from glob import glob
 
 
 def main():
@@ -31,17 +32,18 @@ def main():
     model.load_weights(modelSaveName)
     if not os.path.exists(save_path):
         os.mkdir(save_path)
-    all_centroid_files = os.listdir(Dot_path)
+    csv_files = sorted(glob(f"{Dot_path}/*.csv"))
 
-    for image_name in all_centroid_files:
-        if os.path.exists(os.path.join(save_path, image_name[:-4] + '_instances.png')):
-            print('image {} has already been processed'.format(image_name))
+    for csv_path in csv_files:
+        image_name = os.path.basename(csv_path).replace("csv", "jpg").replace("annotations", "images")
+        if os.path.exists(os.path.join(save_path, image_name[:-4] + "_instances.png")):
+            print("image {} has already been processed".format(image_name))
             pass
         else:
 
             print('processing image :{}'.format(image_name))
 
-            out = readImageAndCentroids(image_path, Dot_path, image_name)
+            out = readImageAndCentroids(image_path, csv_path, image_name)
             if len(out) == 1:
                 print('this image has no nuclei')
                 imsave(os.path.join(save_path, image_name[:-4] + '_instances.png'), out[0])
@@ -95,10 +97,16 @@ def main():
                 instanceMap = generateInstanceMap(masks, boundingBoxes, m, n)
                 instanceMap_RGB  = label2rgb(instanceMap, image=img, alpha=0.3,
                  bg_label=0, bg_color=(0, 0, 0), image_alpha=1, kind='overlay')
-                plt.figure()
-                plt.imshow(instanceMap_RGB)
-                plt.show()
-                imsave(os.path.join(save_path, image_name[:-4] + '_instances.png'), instanceMap)
+                #plt.figure()
+                #plt.imshow(instanceMap_RGB)
+                #plt.show()
+                # Save nuclick segmentation result and visualization
+                os.makedirs(os.path.join(save_path, "masks"), exist_ok=True)
+                os.makedirs(os.path.join(save_path, "overlays"), exist_ok=True)
+                os.makedirs(os.path.join(save_path, "instances"), exist_ok=True)
+                np.save(os.path.join(save_path, "masks", image_name[:-4] + ".npy"), instanceMap)
+                imsave(os.path.join(save_path, "overlays", image_name[:-4] + ".png"), instanceMap_RGB)
+                imsave(os.path.join(save_path, "instances", image_name[:-4] + ".png"), instanceMap_RGB)
                 # plt.figure(),plt.imshow(img)
 if __name__=='__main__':
     main()
