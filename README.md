@@ -3,7 +3,7 @@ This repository provides the NuClick code ([link to original repo](https://githu
 
 ## Idea
  NuClick enables nuclei segmentation with the help of a guiding signal. 
- In our case the guiding signal is the cell centroid coordinate, which is given as the cell ground truth for the OCELOT train data. This way we obtain ground truth segmentation maps for the OCELOT 2023 Challenge by using NuClick ([link to NuClick paper ](https://arxiv.org/abs/2005.14511) ).
+ In our case the guiding signal is the cell point annotation from the OCELOT train data. This way we obtain ground truth segmentation maps for the OCELOT 2023 Challenge by using NuClick ([link to NuClick paper ](https://arxiv.org/abs/2005.14511) ).
 
 Original image             |  Cell centroids (OCELOT ground truth) | NuClick prediction
 -------------------------|-------------------------|-------------------------
