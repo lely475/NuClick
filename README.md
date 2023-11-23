@@ -28,7 +28,7 @@ Pillow==8.0.1
 
  ## Inference:
  Download weights for nucleus segmentation from [here]( https://drive.google.com/open?id=1MGjZs_-2Xo1W9NZqbq_5XLP-VbIo-ltA) and save it inside `weights` folder:
- * Define directories in the `config.py`:  `mat_path = ''` ,  `images_path = ''` and `save_path = ''`
+ * Define directories in the `config.py`:  path to annotation csvs: `mat_path = ''` , path to images:  `images_path = ''` and `save_path = ''`
  * run `test_all_images`
  
 ## Credits
